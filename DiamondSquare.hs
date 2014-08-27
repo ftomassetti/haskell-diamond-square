@@ -9,17 +9,16 @@ where
 import Control.Monad.ST
 import Data.Array.ST
 
-import qualified Data.Vector.Generic as G
-import qualified Data.Vector as V
+--import qualified Data.Vector as V
+--import qualified Data.Vector.Generic.Mutable as M
+import qualified Data.Vector.Unboxed as V
 import qualified Data.Vector.Unboxed.Mutable as M
 
---import Data.Array.Repa hiding (map, (++))
---import qualified Data.Array.Repa as Repa
+import Data.Array.Repa hiding (map, (++))
+import qualified Data.Array.Repa as Repa
 import Control.Monad.State
 import Data.STRef
 import System.Random
---import Debug.Trace
---import Text.Printf
 --import Data.Array.Repa.IO.BMP
 --import Graphics.Gloss.Raster.Array
 
@@ -41,7 +40,6 @@ computePoints rg dims@(Width w, Height h) nwSeed neSeed swSeed seSeed =
     ne = (w-1,0)
     sw = (0,h-1)
     se = (w-1,h-1)
-
 
 diamondStep :: 
   (MArray t Float (ST s), RandomGen g) 
@@ -105,49 +103,51 @@ squareStep rgRef dims depth ((nwX,nwY),nwV) ((neX,neY),neV) ((swX,swY),swV) ((se
 
 --------------------------------------------------------------------------------
 
-computePoints' :: 
+computePoints' ::
   (RandomGen g) 
-    => g
-    -> (Width, Height)
-    -> Float
-    -> Float
-    -> Float
-    -> Float
-    -> ST s (M.MVector s Float)
-computePoints' rg dims@(Width w, Height h) nwSeed neSeed swSeed seSeed = do 
+  => g
+  -> (Width, Height)
+  -> Float
+  -> Float
+  -> Float
+  -> Float
+  -> V.Vector Float
+computePoints' rg dims@(Width w, Height h) nwSeed neSeed swSeed seSeed = 
+  runST $ do 
     rgRef <- newSTRef rg
-    let size = (w * h) - 1
-    arr  <- M.new size
-    arr' <- diamondStep' rgRef dims 0 (nw,nwSeed) (ne,neSeed) (sw,swSeed) (se,seSeed) arr
-    return arr'
+    let size = (w * h)
+    v  <- M.new size
+    v' <- diamondStep' rgRef dims 0 (nw,nwSeed) (ne,neSeed) (sw,swSeed) (se,seSeed) v
+    V.unsafeFreeze v'
   where
     nw = (0,0)
     ne = (w-1,0)
     sw = (0,h-1)
     se = (w-1,h-1)
 
-diamondStep' ::
-  (RandomGen g)
-    => STRef s g
-    -> (Width, Height)
-    -> Int
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> M.MVector s Float
-    -> ST s (M.MVector s Float)
-diamondStep' rgRef dims depth ((nwX,nwY),nwV) ((neX,neY),neV) ((swX,swY),swV) ((seX,seY),seV) arr = do
+
+--diamondStep' ::
+--  (M.MVector v Float, RandomGen g) 
+--    => STRef s g
+--    -> (Width, Height)
+--    -> Int
+--    -> ((Int, Int), Float)
+--    -> ((Int, Int), Float)
+--    -> ((Int, Int), Float)
+--    -> ((Int, Int), Float)
+--    -> v s Float
+--    -> ST s (v s Float)
+diamondStep' rgRef dims depth ((nwX,nwY),nwV) ((neX,neY),neV) ((swX,swY),swV) ((seX,seY),seV) v = do
    rg <- readSTRef rgRef
    let (jitter, rg') = randomR (-1.0 :: Float,1.0 :: Float) rg
    let power         = 1.0 / (fromIntegral $ 2 ^ depth)
    writeSTRef rgRef rg'
-   M.write arr nwIx nwV
-   M.write arr neIx neV
-   M.write arr swIx swV  
-   M.write arr seIx seV
-   M.write arr mIx mV
-   squareStep' rgRef dims (depth + 1) ((nwX,nwY),nwV) ((neX,neY),neV) ((swX,swY),swV) ((seX,seY),seV) (m,mV + (jitter * power)) arr >>= return
+   M.write v nwIx nwV
+   M.write v neIx neV
+   M.write v swIx swV  
+   M.write v seIx seV
+   M.write v mIx mV
+   squareStep' rgRef dims (depth + 1) ((nwX,nwY),nwV) ((neX,neY),neV) ((swX,swY),swV) ((seX,seY),seV) (m,mV + (jitter * power)) v >>= return
   where
     nwIx = index2 dims (nwX,nwY)
     neIx = index2 dims (neX,neY)
@@ -158,25 +158,25 @@ diamondStep' rgRef dims depth ((nwX,nwY),nwV) ((neX,neY),neV) ((swX,swY),swV) ((
     mV   = avg [nwV,neV,swV,seV]
 
 
-squareStep' ::
-  (RandomGen g) 
-    => STRef s g
-    -> (Width, Height)
-    -> Int
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> M.MVector s Float
-    -> ST s (M.MVector s Float)
-squareStep' rgRef dims depth ((nwX,nwY),nwV) ((neX,neY),neV) ((swX,swY),swV) ((seX,seY),seV) ((mX,mY),mV) arr
-  | done      = return arr
+--squareStep' ::
+--  (M.MVector v Float, RandomGen g) 
+--    => STRef s g
+--    -> (Width, Height)
+--    -> Int
+--    -> ((Int, Int), Float)
+--    -> ((Int, Int), Float)
+--    -> ((Int, Int), Float)
+--    -> ((Int, Int), Float)
+--    -> ((Int, Int), Float)
+--    -> v s Float
+--    -> ST s (v s Float)
+squareStep' rgRef dims depth ((nwX,nwY),nwV) ((neX,neY),neV) ((swX,swY),swV) ((seX,seY),seV) ((mX,mY),mV) v
+  | done      = return v
   | otherwise = do
-      diamondStep' rgRef dims depth' ((nwX,nwY),nwV) ((nX,nY),nV) ((wX,wY),wV) ((mX,mY),mV) arr >>=
-        diamondStep' rgRef dims depth' ((nX,nY),nV) ((neX,neY),neV) ((mX,mY),mV) ((eX,eY),eV)   >>=
-        diamondStep' rgRef dims depth' ((wX,wY),wV) ((mX,mY),mV) ((swX,swY),swV) ((sX,sY),sV)   >>=
-        diamondStep' rgRef dims depth' ((mX,mY),mV) ((eX,eY),eV) ((sX,sY),sV) ((seX,seY),seV)   >>=
+      diamondStep' rgRef dims depth' ((nwX,nwY),nwV) ((nX,nY),nV) ((wX,wY),wV) ((mX,mY),mV) v >>=
+        diamondStep' rgRef dims depth' ((nX,nY),nV) ((neX,neY),neV) ((mX,mY),mV) ((eX,eY),eV) >>=
+        diamondStep' rgRef dims depth' ((wX,wY),wV) ((mX,mY),mV) ((swX,swY),swV) ((sX,sY),sV) >>=
+        diamondStep' rgRef dims depth' ((mX,mY),mV) ((eX,eY),eV) ((sX,sY),sV) ((seX,seY),seV) >>=
         return
   where
     depth'     = depth + 1
@@ -222,4 +222,7 @@ main = do
 
   let x  = computePoints rg dims nwSeed neSeed swSeed seSeed
   let x' = computePoints' rg dims nwSeed neSeed swSeed seSeed  
-  putStrLn "xx"
+
+  putStrLn $ show x
+  putStrLn " --- "
+  putStrLn $ show $ Repa.fromUnboxed (Z :. w :. h) x'
