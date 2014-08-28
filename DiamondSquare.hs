@@ -19,40 +19,44 @@ import qualified Data.Array.Repa as Repa
 import Data.STRef
 import System.Random
 import Data.Array.Repa.IO.BMP
---import Graphics.Gloss.Raster.Array
 
+--------------------------------------------------------------------------------
 
+type Point     = (Int,Int)
 newtype Width  = Width Int deriving (Eq,Show,Ord)
 newtype Height = Height Int deriving (Eq,Show,Ord)
+
+data HeightMap a = HeightMap { getValues :: !(Array U DIM2 a) }
+     deriving (Show,Eq)
 
 --------------------------------------------------------------------------------
 
 heightField ::
-  (M.Unbox a, RandomGen g) 
+  (M.Unbox a, RandomGen g, Random b, M.Unbox b, Fractional b, Ord b) 
     => g 
     -> (Width, Height) 
-    -> (Float -> a)
-    -> Array U DIM2 a
+    -> (b -> a)
+    -> HeightMap a
 heightField !rg !dims@(Width w, Height h) !f = do
   let points = computeFieldPoints rg4 dims seed1 seed2 seed3 seed4
-  Repa.fromUnboxed shape $ V.map f points
+  HeightMap $ Repa.fromUnboxed shape $ V.map f points
   where 
-    (seed1,rg1) = randomR (0.0 :: Float, 1.0 :: Float) rg
-    (seed2,rg2) = randomR (0.0 :: Float, 1.0 :: Float) rg1
-    (seed3,rg3) = randomR (0.0 :: Float, 1.0 :: Float) rg2
-    (seed4,rg4) = randomR (0.0 :: Float, 1.0 :: Float) rg3
+    (seed1,rg1) = randomR (0.0, 1.0) rg
+    (seed2,rg2) = randomR (0.0, 1.0) rg1
+    (seed3,rg3) = randomR (0.0, 1.0) rg2
+    (seed4,rg4) = randomR (0.0, 1.0) rg3
     shape       = (Z :. w :. h)
 
 
 computeFieldPoints ::
-  (RandomGen g) 
+  (RandomGen g, Random b, M.Unbox b, Ord b, Fractional b) 
     => g
     -> (Width, Height)
-    -> Float
-    -> Float
-    -> Float
-    -> Float
-    -> V.Vector Float
+    -> b
+    -> b
+    -> b
+    -> b
+    -> V.Vector b
 computeFieldPoints !rg !dims@(Width w, Height h) !seed1 !seed2 !seed3 !seed4 = 
   runST $ do 
     rgRef <- newSTRef rg
@@ -67,25 +71,35 @@ computeFieldPoints !rg !dims@(Width w, Height h) !seed1 !seed2 !seed3 !seed4 =
 
 
 diamondStep ::
-  (RandomGen g)
+  (RandomGen g, Random b, Ord b, M.Unbox b, Fractional b)
     => STRef s g
     -> (Width, Height)
     -> Int
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> M.MVector s Float
-    -> ST s (M.MVector s Float)
+    -> (Point, b)
+    -> (Point, b)
+    -> (Point, b)
+    -> (Point, b)
+    -> M.MVector s b
+    -> ST s (M.MVector s b)
 diamondStep !rgRef !dims !depth !((nwX,nwY),nwV) !((neX,neY),neV) !((swX,swY),swV) !((seX,seY),seV) !v = do
-   mV' <- (jitterValue rgRef depth mV)
-   M.write v nwIx nwV
-   M.write v neIx neV
-   M.write v swIx swV  
-   M.write v seIx seV
-   M.write v mIx mV
+   mV' <- jitterValue mV
+   M.unsafeWrite v nwIx nwV
+   M.unsafeWrite v neIx neV
+   M.unsafeWrite v swIx swV  
+   M.unsafeWrite v seIx seV
+   M.unsafeWrite v mIx mV
    squareStep rgRef dims (depth + 1) ((nwX,nwY),nwV) ((neX,neY),neV) ((swX,swY),swV) ((seX,seY),seV) (m,mV') v >>= return
   where
+    index2 (Width w,_) (i,j) = (i * w) + j
+
+    jitterValue value = do
+      rg <- readSTRef rgRef
+      let (amount, rg') = randomR (-1.0,1.0) rg
+      let depth'        = (fromIntegral depth)
+      let power         = 1.0 / depth'
+      writeSTRef rgRef rg'
+      return $ clamp 0.0 1.0 $ value + (amount * power)
+
     nwIx = index2 dims (nwX,nwY)
     neIx = index2 dims (neX,neY)
     swIx = index2 dims (swX,swY)
@@ -96,17 +110,17 @@ diamondStep !rgRef !dims !depth !((nwX,nwY),nwV) !((neX,neY),neV) !((swX,swY),sw
 
 
 squareStep ::
-  (RandomGen g)
+  (RandomGen g, Random b, Fractional b, M.Unbox b, Ord b)
     => STRef s g
     -> (Width, Height)
     -> Int
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> ((Int, Int), Float)
-    -> M.MVector s Float
-    -> ST s (M.MVector s Float)
+    -> (Point, b)
+    -> (Point, b)
+    -> (Point, b)
+    -> (Point, b)
+    -> (Point, b)
+    -> M.MVector s b
+    -> ST s (M.MVector s b)
 squareStep !rgRef !dims !depth !((nwX,nwY),nwV) !((neX,neY),neV) !((swX,swY),swV) !((seX,seY),seV) !((mX,mY),mV) !v
   | done      = return v
   | otherwise = do
@@ -117,26 +131,11 @@ squareStep !rgRef !dims !depth !((nwX,nwY),nwV) !((neX,neY),neV) !((swX,swY),swV
         return
   where
     depth'     = depth + 1
-    done       = (abs $ nwX - seX) * (abs $ nwY - seY) <= 1
+    done       = (abs $ nwX - seX) <= 1 && (abs $ nwY - seY) <= 1
     (nX,nY,nV) = (iavg [nwX,neX],iavg [nwY,neY],avg [nwV,neV])
     (eX,eY,eV) = (iavg [neX,seX],iavg [neY,seY],avg [neV,seV])
     (wX,wY,wV) = (iavg [nwX,swX],iavg [nwY,swY],avg [nwV,swV])
     (sX,sY,sV) = (iavg [swX,seX],iavg [swY,seY],avg [swV,seV])
-
-
-jitterValue ::
-  (RandomGen g) 
-    => STRef s g 
-    -> Int 
-    -> Float
-    -> ST s Float
-jitterValue rgRef depth value = do
-  rg <- readSTRef rgRef
-  let (amount, rg') = randomR (-1.0 :: Float,1.0 :: Float) rg
-  let depth'        = (fromIntegral depth)
-  let power         = 1.0 / depth'
-  writeSTRef rgRef rg'
-  return $ clamp 0.0 1.0 $ value + (amount * power)
 
 --------------------------------------------------------------------------------
 
@@ -152,24 +151,16 @@ iavg :: [Int] -> Int
 iavg xs = floor $ sum (map fromIntegral xs) / (fromIntegral $ length xs)
 
 
-index2 :: (Width,Height) -> (Int,Int) -> Int
-index2 (Width w,_) (i,j) = (i * w) + j
-
-
-index1 :: (Width,Height) -> Int -> (Int,Int)
-index1 (Width w,_) i = (i `div` w,i `mod` w)
-
-
 floatToBytes :: Float -> (Word8,Word8,Word8)
 floatToBytes v = (b,b,b) where b = (floor $ 255.0 * v) :: Word8
 
+--------------------------------------------------------------------------------
 
 main :: IO ()
 main = do
   rg <- getStdGen
-  let (w,h) = (128,128)
+  let (w,h) = (160,160)
   let dims  = (Width w,Height h)
 
   let hf = heightField rg dims floatToBytes
-
-  writeImageToBMP "/tmp/heightfield.bmp" hf
+  writeImageToBMP "/tmp/heightfield.bmp" $ getValues hf
