@@ -4,10 +4,10 @@
 
 -- ghci -fno-ghci-sandbox DiamondSquare.hs
 
-module DiamondSquare (HeightMap(..), heightField)
+module DiamondSquare (HeightMap(..), heightMap)
 where
 
---import Control.Monad
+import Control.Monad
 import Control.Monad.ST
 --import qualified Data.Vector as V
 --import qualified Data.Vector.Generic.Mutable as M
@@ -23,14 +23,15 @@ import Data.Array.Repa.IO.BMP
 
 --------------------------------------------------------------------------------
 
-type Point     = (Int,Int)
-newtype Width  = Width Int deriving (Eq,Show,Ord)
+newtype Width = Width Int deriving (Eq,Show,Ord)
+
 newtype Height = Height Int deriving (Eq,Show,Ord)
 
-data HeightMap a = HeightMap { getValues :: !(Array U DIM2 a) }
-     deriving (Show,Eq)
-
 --------------------------------------------------------------------------------
+
+data HeightMap a = HeightMap { getValues :: !(Array U DIM2 a) }
+  deriving (Show,Eq)
+
 
 class (M.Unbox a, Ord a, Random a) => SeedValue a where
 
@@ -38,43 +39,33 @@ class (M.Unbox a, Ord a, Random a) => SeedValue a where
 
   jitter :: RandomGen g => g -> Int -> a -> (g,a)
 
+--------------------------------------------------------------------------------
 
-instance SeedValue Int where
-
-  avg xs = sum xs `div` length xs
-
-  jitter rg _ value = (rg', max 0 $ value + amount)
-    where
-      (amount, rg') = randomR (-1,1) rg
-
-
-instance SeedValue Float where
-
-  avg xs = sum xs / (fromIntegral $ length xs)
-
-  jitter rg depth value = (rg', clamp 0.0 1.0 $ value + (amount * power))
-    where
-      (amount, rg') = randomR (-1.0,1.0) rg
-      power         = 1.0 / (fromIntegral depth)
+clamp :: Ord a => a -> a -> a -> a
+clamp lo hi n = min (max n lo) hi
+{-# INLINE clamp #-}
 
 --------------------------------------------------------------------------------
 
-heightField ::
-  (M.Unbox a, RandomGen g, SeedValue b) 
-    => g               -- ^ Random seed value generator
-    -> (Width, Height) -- ^ (Width,Height) of the height map in units
-    -> b               -- ^ NW seed value
-    -> b               -- ^ NE seed value
-    -> b               -- ^ SW seed value
-    -> b               -- ^ SE seed value
-    -> (b -> a)        -- ^
-    -> HeightMap a
-heightField !rg !dims@(Width w, Height h) !seed1 !seed2 !seed3 !seed4 !f = do
-  let points  = computeFieldPoints rg dims seed1 seed2 seed3 seed4
-  let points' = Repa.fromUnboxed (Z :. w :. h) $ V.map f points
+heightMap ::
+  (RandomGen g, SeedValue b) 
+    => g                 -- ^ Random seed value generator
+    -> (Int, Int)        -- ^ (Width,Height) of the height map in units
+    -> b                 -- ^ NW seed value
+    -> b                 -- ^ NE seed value
+    -> b                 -- ^ SW seed value
+    -> b                 -- ^ SE seed value
+    -> HeightMap b
+heightMap !rg !(w,h) !seed1 !seed2 !seed3 !seed4 = do
+  let points  = computeFieldPoints rg (Width w, Height h) seed1 seed2 seed3 seed4
+  let points' = Repa.fromUnboxed (Z :. w :. h) points
   HeightMap $ if w == h 
               then points' 
               else Repa.computeUnboxedS $ Repa.transpose points'
+
+
+--heightMap2D !rg !(w,h) !seed1 !seed2 !seed3 !seed4 =
+--  heightMap rg (w,h) seed1 seed2 seed3 seed4
 
 
 computeFieldPoints ::
@@ -104,36 +95,42 @@ diamondStep ::
     => STRef s g
     -> (Width, Height) -- ^ (Width,Height) of the height map in units
     -> Int             -- ^ Current recursion depth in the algorithm
-    -> (Point, b)      -- ^ NW ((x,y) coordinate, seed-value)
-    -> (Point, b)      -- ^ NE ((x,y) coordinate, seed-value)
-    -> (Point, b)      -- ^ SW ((x,y) coordinate, seed-value)
-    -> (Point, b)      -- ^ SE ((x,y) coordinate, seed-value)
+    -> ((Int,Int), b)  -- ^ NW ((x,y) coordinate, seed-value)
+    -> ((Int,Int), b)  -- ^ NE ((x,y) coordinate, seed-value)
+    -> ((Int,Int), b)  -- ^ SW ((x,y) coordinate, seed-value)
+    -> ((Int,Int), b)  -- ^ SE ((x,y) coordinate, seed-value)
     -> M.MVector s b   -- ^ The result vector
     -> ST s (M.MVector s b)
-diamondStep !rgRef !dims !depth !((nwX,nwY),nwV) !((neX,neY),neV) !((swX,swY),swV) !((seX,seY),seV) !v = do
-   mV' <- jitterValue mV
-   M.unsafeWrite v nwIx nwV
-   M.unsafeWrite v neIx neV
-   M.unsafeWrite v swIx swV  
-   M.unsafeWrite v seIx seV
-   M.unsafeWrite v mIx mV
-   squareStep rgRef 
-              dims 
-              (depth + 1) 
-              ((nwX,nwY),nwV) 
-              ((neX,neY),neV) 
-              ((swX,swY),swV) 
-              ((seX,seY),seV) 
-              (m,mV') 
-              v >>= return
+diamondStep !rgRef 
+            !dims 
+            !depth 
+            !((nwX,nwY),nwV) 
+            !((neX,neY),neV) 
+            !((swX,swY),swV) 
+            !((seX,seY),seV) 
+            !v = do
+  mV' <- jitterValue mV
+  M.unsafeWrite v nwIx nwV
+  M.unsafeWrite v neIx neV
+  M.unsafeWrite v swIx swV  
+  M.unsafeWrite v seIx seV
+  M.unsafeWrite v mIx mV
+  squareStep rgRef 
+            dims 
+            (depth + 1) 
+            ((nwX,nwY),nwV) 
+            ((neX,neY),neV) 
+            ((swX,swY),swV) 
+            ((seX,seY),seV) 
+            (m,mV') 
+            v >>= return
   where
-
+    index2 (Width w,Height h) (i,j) = (i * h) + j
     jitterValue value = do
       rg <- readSTRef rgRef
       let (rg',delta) = jitter rg depth value
       writeSTRef rgRef rg'
       return delta
-
     nwIx = index2 dims (nwX,nwY)
     neIx = index2 dims (neX,neY)
     swIx = index2 dims (swX,swY)
@@ -148,14 +145,22 @@ squareStep ::
     => STRef s g
     -> (Width, Height) -- ^ (Width,Height) of the height map in units
     -> Int             -- ^ Current recursion depth in the algorithm
-    -> (Point, b)      -- ^ NW ((x,y) coordinate, seed-value)
-    -> (Point, b)      -- ^ NE ((x,y) coordinate, seed-value)
-    -> (Point, b)      -- ^ SW ((x,y) coordinate, seed-value)
-    -> (Point, b)      -- ^ SE ((x,y) coordinate, seed-value)
-    -> (Point, b)      -- ^ Midpoint ((x,y) coordinate, seed-value)
+    -> ((Int,Int), b)  -- ^ NW ((x,y) coordinate, seed-value)
+    -> ((Int,Int), b)  -- ^ NE ((x,y) coordinate, seed-value)
+    -> ((Int,Int), b)  -- ^ SW ((x,y) coordinate, seed-value)
+    -> ((Int,Int), b)  -- ^ SE ((x,y) coordinate, seed-value)
+    -> ((Int,Int), b)  -- ^ Midpoint ((x,y) coordinate, seed-value)
     -> M.MVector s b   -- ^ The result vector
     -> ST s (M.MVector s b)
-squareStep !rgRef !dims !depth !((nwX,nwY),nwV) !((neX,neY),neV) !((swX,swY),swV) !((seX,seY),seV) !((mX,mY),mV) !v
+squareStep !rgRef 
+           !dims 
+           !depth 
+           !((nwX,nwY),nwV) 
+           !((neX,neY),neV) 
+           !((swX,swY),swV) 
+           !((seX,seY),seV) 
+           !((mX,mY),mV) 
+           !v
   | done      = return v
   | otherwise = do
       diamondStep rgRef 
@@ -197,29 +202,48 @@ squareStep !rgRef !dims !depth !((nwX,nwY),nwV) !((neX,neY),neV) !((swX,swY),swV
 
 --------------------------------------------------------------------------------
 
+instance SeedValue Int where
 
-index2 :: (Width, Height) -> (Int, Int) -> Int
-index2 (Width w,Height h) (i,j) = (i * h) + j
+  avg xs = sum xs `div` length xs
+
+  jitter rg _ value = (rg', max 0 $ value + amount)
+    where
+      (amount, rg') = randomR (-1,1) rg
 
 
-clamp :: Ord a => a -> a -> a -> a
-clamp lo hi n = min (max n lo) hi
+instance SeedValue Float where
 
+  avg xs = sum xs / (fromIntegral $ length xs)
+
+  jitter rg depth value = (rg', clamp 0.0 1.0 $ value + (amount * power))
+    where
+      (amount, rg') = randomR (-1.0,1.0) rg
+      power         = 1.0 / (fromIntegral depth)
+
+
+--instance SeedValue R2Point where
+
+--  avg xs = sum xs `div` length xs
+
+  --jitter rg _ value = (rg', max 0 $ value + amount)
+  --  where
+  --    (amount, rg') = randomR (-1,1) rg
+
+--------------------------------------------------------------------------------
 
 floatToBytes :: Float -> (Word8,Word8,Word8)
 floatToBytes v = (b,b,b) where b = (floor $ 255.0 * v) :: Word8
 
---------------------------------------------------------------------------------
 
 main :: IO ()
 main = do
   rg    <- getStdGen
-  seed1 <- randomRIO (0.0, 1.0)
-  seed2 <- randomRIO (0.0, 1.0)
-  seed3 <- randomRIO (0.0, 1.0)
-  seed4 <- randomRIO (0.0, 1.0)
-  let (w,h) = (300,200)
-  let dims  = (Width w,Height h)
+  seed1 <- randomRIO (0.0, 1.0) :: IO Float
+  seed2 <- randomRIO (0.0, 1.0) :: IO Float
+  seed3 <- randomRIO (0.0, 1.0) :: IO Float
+  seed4 <- randomRIO (0.0, 1.0) :: IO Float
 
-  let hf = heightField rg dims seed1 seed2 seed3 seed4 floatToBytes
-  writeImageToBMP "/tmp/heightfield.bmp" $ getValues hf
+  let hf  = heightMap rg (16,12) seed1 seed2 seed3 seed4
+  --let hf' = Repa.map floatToBytes hf
+  putStrLn $ show hf
+  --writeImageToBMP "/tmp/heightMap.bmp" $ getValues hf'
