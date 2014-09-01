@@ -18,6 +18,8 @@ import Data.Array.Repa hiding (map, (++))
 import qualified Data.Array.Repa as R
 import Data.STRef
 import System.Random
+import Debug.Trace 
+import Text.Printf
 
 --------------------------------------------------------------------------------
 
@@ -99,9 +101,11 @@ heightMap' ::
     -> a         -- ^ SE seed value
     -> HeightMap' a
 heightMap' !rg !(w,h) !seed1 !seed2 !seed3 !seed4 =
-  R.delay . R.fromUnboxed (Z :. w :. h) $ 
+  R.delay . R.fromUnboxed (Z :. w' :. h') $ 
                computeFieldPoints
-                  rg (Width w, Height h) seed1 seed2 seed3 seed4
+                  rg (Width w', Height h') seed1 seed2 seed3 seed4
+  where
+    (w',h') = (h,w)
 
 
 -- |
@@ -152,15 +156,15 @@ computeFieldPoints ::
 computeFieldPoints !rg !dims@(Width w, Height h) !seed1 !seed2 !seed3 !seed4 = 
   runST $ do 
     rg' <- newSTRef rg
-    v   <- UM.new (w * h)
+    v   <- UM.new $ (w * h)
     UM.set v empty
     v'  <- diamond rg' dims 0 (nw,seed1) (ne,seed2) (sw,seed3) (se,seed4) v
     U.unsafeFreeze v'
   where
     nw = (0,0)
-    ne = (w-1,0)
-    sw = (0,h-1)
-    se = (w-1,h-1)
+    ne = (w,0)
+    sw = (0,h)
+    se = (w,h)
 
 
 -- |
@@ -182,38 +186,27 @@ diamond !rg'
         !((neX,neY),neV) 
         !((swX,swY),swV) 
         !((seX,seY),seV) 
-        !v = do
-  mV' <- jitterValue mV
-  unsafeWrite v nwIx nwV
-  unsafeWrite v neIx neV
-  unsafeWrite v swIx swV  
-  unsafeWrite v seIx seV
-  oldMV <- unsafeRead v mIx
-  if oldMV == empty
-    then unsafeWrite v mIx mV
-    else unsafeWrite v mIx $ avg [mV,oldMV]
-  square rg' 
-         dims 
-         (depth + 1) 
-         ((nwX,nwY),nwV) 
-         ((neX,neY),neV) 
-         ((swX,swY),swV) 
-         ((seX,seY),seV) 
-         (m,mV') 
-          v >>= return
+        !v
+  | done (nwX,nwY) (neX,neY) (swX,swY) (seX,seY) m = do
+    unsafeWrite v mIx mV
+    return v
+  | otherwise = do
+      mV' <- jitterValue rg' depth mV
+      --unsafeWrite v nwIx nwV
+      --unsafeWrite v neIx neV
+      --unsafeWrite v swIx swV  
+      --unsafeWrite v seIx seV
+      square rg' 
+             dims 
+             (depth + 1) 
+             ((nwX,nwY),nwV) 
+             ((neX,neY),neV) 
+             ((swX,swY),swV) 
+             ((seX,seY),seV) 
+             (m,mV') 
+              v >>= return
   where
     index2 (_,Height h) (i,j) = (i * h) + j
-    
-    jitterValue value = do
-      rg <- readSTRef rg'
-      let (nextRg,delta) = jitter rg depth value
-      writeSTRef rg' nextRg
-      return delta
-    
-    nwIx = index2 dims (nwX,nwY)
-    neIx = index2 dims (neX,neY)
-    swIx = index2 dims (swX,swY)
-    seIx = index2 dims (seX,seY)
     m    = (avg [nwX,neX,swX,seX],avg [nwY,neY,swY,seY])
     mIx  = index2 dims m
     mV   = avg [nwV,neV,swV,seV]
@@ -240,21 +233,52 @@ square !rg'
        !((swX,swY),swV) 
        !((seX,seY),seV) 
        !((mX,mY),mV) 
-       !v
-  | done      = return v
-  | otherwise = do
-      diamond rg' dims depth' ((nwX,nwY),nwV) ((nX,nY),nV) ((wX,wY),wV) ((mX,mY),mV) v >>=
-       diamond rg' dims depth' ((nX,nY),nV) ((neX,neY),neV) ((mX,mY),mV) ((eX,eY),eV) >>=
-       diamond rg' dims depth' ((wX,wY),wV) ((mX,mY),mV) ((swX,swY),swV) ((sX,sY),sV) >>=
-       diamond rg' dims depth' ((mX,mY),mV) ((eX,eY),eV) ((sX,sY),sV) ((seX,seY),seV) >>=
-       return
+       !v =
+  do
+    diamond rg' dims depth' ((nwX,nwY),nwV) ((nX,nY),nV) ((wX,wY),wV) ((mX,mY),mV) v >>=
+     diamond rg' dims depth' ((nX,nY),nV) ((neX,neY),neV) ((mX,mY),mV) ((eX,eY),eV) >>=
+     diamond rg' dims depth' ((wX,wY),wV) ((mX,mY),mV) ((swX,swY),swV) ((sX,sY),sV) >>=
+     diamond rg' dims depth' ((mX,mY),mV) ((eX,eY),eV) ((sX,sY),sV) ((seX,seY),seV) >>=
+     return
   where
     depth'     = depth + 1
-    done       = (abs $ nwX - seX) <= 1 && (abs $ nwY - seY) <= 1
     (nX,nY,nV) = (avg [nwX,neX],avg [nwY,neY],avg [nwV,neV])
     (eX,eY,eV) = (avg [neX,seX],avg [neY,seY],avg [neV,seV])
     (wX,wY,wV) = (avg [nwX,swX],avg [nwY,swY],avg [nwV,swV])
     (sX,sY,sV) = (avg [swX,seX],avg [swY,seY],avg [swV,seV])
+
+-- | 
+jitterValue :: 
+  (RandomGen a, SeedValue b) 
+    => STRef s a 
+    -> Int 
+    -> b 
+    -> ST s b
+jitterValue rg' depth value = do
+  rg <- readSTRef rg'
+  let (nextRg,delta) = jitter rg depth value
+  writeSTRef rg' nextRg
+  return delta
+{-# INLINE jitterValue #-}
+
+
+-- | Done condition test
+done :: (Int,Int) -> (Int,Int) -> (Int,Int) -> (Int,Int) -> (Int,Int) -> Bool
+done (nwX,nwY) (neX,neY) (swX,swY) (seX,seY) (mX,mY) = l * w <= 1
+  where
+    l = abs $ nwY - swY
+    w = abs $ nwX - neX
+{-# INLINE done #-}
+
+
+--done :: (Int,Int) -> (Int,Int) -> (Int,Int) -> (Int,Int) -> (Int,Int) -> Bool
+--done (nwX,nwY) (neX,neY) (swX,swY) (seX,seY) (mX,mY)
+--  | (nwX,nwY) == (mX,mY) = True 
+--  | (neX,neY) == (mX,mY) = True 
+--  | (swX,swY) == (mX,mY) = True 
+--  | (seX,seY) == (mX,mY) = True 
+--  | otherwise            = False
+--{-# INLINE done #-}
 
 
 -- | Clamp a value toa given range
