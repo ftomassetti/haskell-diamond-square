@@ -192,10 +192,6 @@ diamond !rg'
     return v
   | otherwise = do
       mV' <- jitterValue rg' depth mV
-      --unsafeWrite v nwIx nwV
-      --unsafeWrite v neIx neV
-      --unsafeWrite v swIx swV  
-      --unsafeWrite v seIx seV
       square rg' 
              dims 
              (depth + 1) 
