@@ -16,10 +16,9 @@ import qualified Data.Vector.Unboxed as U hiding (length,sum)
 import qualified Data.Vector.Unboxed.Mutable as UM
 import Data.Array.Repa hiding (map, (++))
 import qualified Data.Array.Repa as R
-import Data.STRef
 import System.Random
-import Debug.Trace 
-import Text.Printf
+--import Debug.Trace 
+--import Text.Printf
 
 --------------------------------------------------------------------------------
 
@@ -155,10 +154,9 @@ computeFieldPoints ::
     -> U.Vector a
 computeFieldPoints !rg !dims@(Width w, Height h) !seed1 !seed2 !seed3 !seed4 = 
   runST $ do 
-    rg' <- newSTRef rg
     v   <- UM.new $ (w * h)
     UM.set v empty
-    v'  <- diamond rg' dims 0 (nw,seed1) (ne,seed2) (sw,seed3) (se,seed4) v
+    v'  <- diamond rg dims 0 (nw,seed1) (ne,seed2) (sw,seed3) (se,seed4) v
     U.unsafeFreeze v'
   where
     nw = (0,0)
@@ -170,7 +168,7 @@ computeFieldPoints !rg !dims@(Width w, Height h) !seed1 !seed2 !seed3 !seed4 =
 -- |
 diamond ::
   (RandomGen g, SeedValue a)
-    => STRef s g
+    => g
     -> (Width, Height) -- ^ (Width,Height) of the height map in units
     -> Int             -- ^ Current recursion depth in the algorithm
     -> ((Int,Int), a)  -- ^ NW ((x,y) coordinate, seed-value)
@@ -179,7 +177,7 @@ diamond ::
     -> ((Int,Int), a)  -- ^ SE ((x,y) coordinate, seed-value)
     -> UM.MVector s a   -- ^ The result vector
     -> ST s (UM.MVector s a)
-diamond !rg' 
+diamond !rg
         !dims 
         !depth 
         !((nwX,nwY),nwV) 
@@ -191,8 +189,7 @@ diamond !rg'
     unsafeWrite v mIx mV
     return v
   | otherwise = do
-      mV' <- jitterValue rg' depth mV
-      square rg' 
+      square rg'
              dims 
              (depth + 1) 
              ((nwX,nwY),nwV) 
@@ -203,6 +200,7 @@ diamond !rg'
               v >>= return
   where
     index2 (_,Height h) (i,j) = (i * h) + j
+    (rg',mV') = jitter rg depth mV
     m    = (avg [nwX,neX,swX,seX],avg [nwY,neY,swY,seY])
     mIx  = index2 dims m
     mV   = avg [nwV,neV,swV,seV]
@@ -211,7 +209,7 @@ diamond !rg'
 -- |
 square ::
   (RandomGen g, SeedValue a)
-    => STRef s g
+    => g
     -> (Width, Height) -- ^ (Width,Height) of the height map in units
     -> Int             -- ^ Current recursion depth in the algorithm
     -> ((Int,Int), a)  -- ^ NW ((x,y) coordinate, seed-value)
@@ -221,7 +219,7 @@ square ::
     -> ((Int,Int), a)  -- ^ Midpoint ((x,y) coordinate, seed-value)
     -> UM.MVector s a   -- ^ The result vector
     -> ST s (UM.MVector s a)
-square !rg' 
+square !rg
        !dims 
        !depth 
        !((nwX,nwY),nwV) 
@@ -231,31 +229,19 @@ square !rg'
        !((mX,mY),mV) 
        !v =
   do
-    diamond rg' dims depth' ((nwX,nwY),nwV) ((nX,nY),nV) ((wX,wY),wV) ((mX,mY),mV) v >>=
-     diamond rg' dims depth' ((nX,nY),nV) ((neX,neY),neV) ((mX,mY),mV) ((eX,eY),eV) >>=
-     diamond rg' dims depth' ((wX,wY),wV) ((mX,mY),mV) ((swX,swY),swV) ((sX,sY),sV) >>=
-     diamond rg' dims depth' ((mX,mY),mV) ((eX,eY),eV) ((sX,sY),sV) ((seX,seY),seV) >>=
+    diamond rg1 dims depth' ((nwX,nwY),nwV) ((nX,nY),nV) ((wX,wY),wV) ((mX,mY),mV) v >>=
+     diamond rg2 dims depth' ((nX,nY),nV) ((neX,neY),neV) ((mX,mY),mV) ((eX,eY),eV) >>=
+     diamond rg3 dims depth' ((wX,wY),wV) ((mX,mY),mV) ((swX,swY),swV) ((sX,sY),sV) >>=
+     diamond rg4 dims depth' ((mX,mY),mV) ((eX,eY),eV) ((sX,sY),sV) ((seX,seY),seV) >>=
      return
   where
+    (rg1,rg2)  = split rg
+    (rg3,rg4)  = split rg1
     depth'     = depth + 1
     (nX,nY,nV) = (avg [nwX,neX],avg [nwY,neY],avg [nwV,neV])
     (eX,eY,eV) = (avg [neX,seX],avg [neY,seY],avg [neV,seV])
     (wX,wY,wV) = (avg [nwX,swX],avg [nwY,swY],avg [nwV,swV])
     (sX,sY,sV) = (avg [swX,seX],avg [swY,seY],avg [swV,seV])
-
--- | 
-jitterValue :: 
-  (RandomGen a, SeedValue b) 
-    => STRef s a 
-    -> Int 
-    -> b 
-    -> ST s b
-jitterValue rg' depth value = do
-  rg <- readSTRef rg'
-  let (nextRg,delta) = jitter rg depth value
-  writeSTRef rg' nextRg
-  return delta
-{-# INLINE jitterValue #-}
 
 
 -- | Done condition test
