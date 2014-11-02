@@ -42,15 +42,23 @@ defaultOptions   = Options {
 
 options :: [OptDescr (Options -> Options)]
 options =
-    [ Option ['s']     ["seed"]       (OptArg seedOption      "SEED")  "use SEED",
-      Option ['b']     ["bitmap"]     (OptArg bmpOption       "FILE")  "output bitmap FILE",
-      Option ['m']     ["heightmap"]  (OptArg heightmapOption "FILE")  "output heightmap FILE" ]
+    [ Option ['s']     ["seed"]       (OptArg seedOption      "SEED"  ) "use SEED",
+      Option ['w']     ["width"]      (OptArg widthOption     "WIDTH" ) "set map WIDTH",
+      Option ['h']     ["height"]     (OptArg heightOption    "HEIGHT") "set map HEIGHT",
+      Option ['b']     ["bitmap"]     (OptArg bmpOption       "FILE"  ) "output bitmap FILE",
+      Option ['m']     ["heightmap"]  (OptArg heightmapOption "FILE"  ) "output heightmap FILE" ]
 
-seedOption, bmpOption, heightmapOption :: Maybe String -> Options -> Options
+seedOption, widthOption, heightOption, bmpOption, heightmapOption :: Maybe String -> Options -> Options
 seedOption      val opts
     | isNothing val = opts
     | otherwise          = opts { optSeed      = Just seed }
                            where seed :: Int = read $ fromJust val
+widthOption     val opts
+    | isNothing val = opts
+    | otherwise     = opts { optWidth = read $ fromJust val}
+heightOption    val opts
+    | isNothing val = opts
+    | otherwise     = opts { optHeight = read $ fromJust val}
 bmpOption       val opts = opts { optBmp       = val }
 heightmapOption val opts = opts { optHeightmap = val }
 
@@ -80,14 +88,24 @@ main = do
   putStrLn "Diamond square generator"
   putStrLn "------------------------"
 
-  (opts,errors) <- compilerOpts args
+  (opts,rest) <- compilerOpts args
+
+  when (not $ null rest) $ ioError (userError $ "Invalid arguments: " ++ show rest)
 
   when (isNothing (optBmp opts) && isNothing (optHeightmap opts)) $ ioError (userError "Nothing to do, please choose -b or -m")
+
+  let width  = optWidth opts
+  let height = optHeight opts
+  when (width  < 1 || width  > 8192) $ ioError (userError "Invalid width. Width should be in [1,8192]")
+  when (height < 1 || height > 8192) $ ioError (userError "Invalid height. Height should be in [1,8192]")
 
   seed <- getSeed opts
   putStrLn      $ "Seed      : " ++ (show seed)
   setStdGen $ mkStdGen seed
   rg <- getStdGen
+
+  putStrLn      $ "Width     : " ++ show width
+  putStrLn      $ "Height    : " ++ show height
 
   if isJust $ optBmp opts
   then putStrLn $ "Bitmap    : '" ++ fromJust ( optBmp opts ) ++ "'"
@@ -103,7 +121,7 @@ main = do
   seed4 <- randomRIO (0.0, 1.0) :: IO Float
 
   let hm = reify $ R.map (\p -> float2bytes $ getHeight p) 
-                 $ unitHeightMap rg (240,240) seed1 seed2 seed3 seed4
+                 $ unitHeightMap rg (width,height) seed1 seed2 seed3 seed4
 
   when (isJust (optBmp opts)) $ do
     let filename = fromJust ( optBmp opts )
