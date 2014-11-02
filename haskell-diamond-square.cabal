@@ -71,7 +71,7 @@ executable haskell-diamond-square
                        protocol-buffers,
                        containers,
                        bytestring
-  
+
   -- Directories containing source files.
   hs-source-dirs:      src, generated
   
