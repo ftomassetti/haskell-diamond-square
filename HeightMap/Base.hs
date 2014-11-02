@@ -2,6 +2,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module HeightMap.Base (HeightMap, HeightMap'
   ,Point, getX, getY, getHeight
@@ -17,13 +19,15 @@ import qualified Data.Vector.Unboxed.Mutable as UM
 import Data.Array.Repa hiding (map, (++))
 import qualified Data.Array.Repa as R
 import System.Random
---import Debug.Trace 
---import Text.Printf
+import Data.ProtocolBuffers
+import GHC.Generics (Generic)
 
 --------------------------------------------------------------------------------
 
 -- | Immediate, 2-dimensional heightmap array
 type HeightMap a  = Array U DIM2 a
+
+instance Encode (Array U DIM2 Float)
 
 -- | Delayed, 2-dimensional heightmap array
 type HeightMap' a = Array D DIM2 a
@@ -255,10 +259,10 @@ done (nwX,nwY) (neX,neY) (swX,swY) (seX,seY) (mX,mY) = l * w <= 1
 
 --done :: (Int,Int) -> (Int,Int) -> (Int,Int) -> (Int,Int) -> (Int,Int) -> Bool
 --done (nwX,nwY) (neX,neY) (swX,swY) (seX,seY) (mX,mY)
---  | (nwX,nwY) == (mX,mY) = True 
---  | (neX,neY) == (mX,mY) = True 
---  | (swX,swY) == (mX,mY) = True 
---  | (seX,seY) == (mX,mY) = True 
+--  | (nwX,nwY) == (mX,mY) = True
+--  | (neX,neY) == (mX,mY) = True
+--  | (swX,swY) == (mX,mY) = True
+--  | (seX,seY) == (mX,mY) = True
 --  | otherwise            = False
 --{-# INLINE done #-}
 

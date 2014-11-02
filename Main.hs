@@ -3,8 +3,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
--- ghci -fno-ghci-sandbox DiamondSquare.hs
+{-# LANGUAGE DeriveGeneric #-}
 
 module Main
 where
@@ -120,8 +119,10 @@ main = do
   seed3 <- randomRIO (0.0, 1.0) :: IO Float
   seed4 <- randomRIO (0.0, 1.0) :: IO Float
 
+  let heightMap = unitHeightMap rg (width,height) seed1 seed2 seed3 seed4
+
   let hm = reify $ R.map (\p -> float2bytes $ getHeight p) 
-                 $ unitHeightMap rg (width,height) seed1 seed2 seed3 seed4
+                 $ heightMap
 
   when (isJust (optBmp opts)) $ do
     let filename = fromJust ( optBmp opts )
