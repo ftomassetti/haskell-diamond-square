@@ -68,7 +68,9 @@ executable haskell-diamond-square
                        cereal,
                        hex,
                        type-level,
-                       protocol-buffers
+                       protocol-buffers,
+                       containers,
+                       bytestring
   
   -- Directories containing source files.
   hs-source-dirs:      src, generated

@@ -18,3 +18,4 @@ cabal.config
 
 ## Ignoring generated files
 *.bmp
+*.hm

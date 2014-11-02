@@ -8,6 +8,7 @@
 module Main
 where
 import Data.Word (Word8)
+import qualified Data.Sequence as S
 import System.Random
 import qualified Data.Array.Repa as R
 import Data.Array.Repa.IO.BMP
@@ -18,6 +19,10 @@ import System.Environment
 import System.IO
 import Data.Maybe ( fromMaybe, isJust, fromJust, isNothing )
 import Control.Monad
+import qualified Protobuf.HeightMap as PH
+import Text.ProtocolBuffers.WireMessage (messageGet, messagePut)
+import qualified Data.ByteString.Lazy as ByteString (
+       readFile, writeFile, length)
 
 --------------------------------------------------------------------------------
 
@@ -79,7 +84,14 @@ getSeed opts = if isJust $ optSeed opts
                else randomIO
 
 saveHeightMap :: Int -> Int -> HeightMap (Point Float) -> FilePath -> IO ()
-saveHeightMap width height cells path = return ()
+saveHeightMap width height cells filename = ByteString.writeFile filename $ messagePut protoHm
+                                            where protoHm = convertToPH width height cells
+
+convertToPH :: Int -> Int -> HeightMap (Point Float) -> PH.HeightMap
+convertToPH width height hm = PH.HeightMap (fromIntegral width) (fromIntegral height) (convertToSeqFloat hm)
+
+convertToSeqFloat :: HeightMap (Point Float) -> S.Seq Float
+convertToSeqFloat hm = S.fromList $ map getHeight (R.toList hm)
 
 -- Main
 
@@ -124,7 +136,7 @@ main = do
 
   let heightMap = unitHeightMap rg (width,height) seed1 seed2 seed3 seed4
 
-  let hm = reify $ R.map (\p -> float2bytes $ getHeight p) 
+  let hm = reify $ R.map (\p -> float2bytes $ getHeight p)
                  $ heightMap
 
   when (isJust (optHeightmap opts)) $ do
