@@ -35,11 +35,7 @@ The program accepts the following options. Note that -b or -m should be specifie
 |-w1000         | Width of the map |  Should be in [1,8192] |
 |-h500          |   | Should be in [1,8192]  |
 |-bmap.bmp      | Specify where to save the bitmap | |
-|-mheightmap.hm |   | *Not yet implemented!* |
-
-TODO
-====
-Implement the possibility to save the generated heightmaps using Google Protocol Buffers.
+|-mheightmap.hm | Specify where to save the map in binary format  | This is serialized using [Google Protocol Buffers](https://developers.google.com/protocol-buffers/) |
 
 Author
 ======
