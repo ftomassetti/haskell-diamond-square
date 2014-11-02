@@ -23,3 +23,24 @@ Heightmap : <not produced>
 
 And the bitmap generated is:
 ![](https://raw.githubusercontent.com/ftomassetti/haskell-diamond-square/master/examples/map.bmp)
+
+Usage
+=====
+
+The program accepts the following options. Note that -b or -m should be specified, otherwise the program exit without doing nothing.
+
+| Example       | Effect |  Notes |
+|---------------|---|---|---|---|
+|-s1            | Specify the seed to use  |   |
+|-w1000         | Width of the map |  Should be in [1,8192] |
+|-h500          |   | Should be in [1,8192]  |
+|-bmap.bmp      | Specify where to save the bitmap | |
+|-mheightmap.hm |   | *Not yet implemented!* |
+
+TODO
+====
+Implement the possibility to save the generated heightmaps using Google Protocol Buffers.
+
+Author
+======
+The implementation of the algorithm was done by [mikeswoods](https://github.com/mikeswoods/haskell-diamond-square), I just wrapped it in a command line utility.
