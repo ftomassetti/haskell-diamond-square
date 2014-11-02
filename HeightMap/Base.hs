@@ -4,6 +4,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module HeightMap.Base (HeightMap, HeightMap'
   ,Point, getX, getY, getHeight
@@ -21,13 +23,30 @@ import qualified Data.Array.Repa as R
 import System.Random
 import Data.ProtocolBuffers
 import GHC.Generics (Generic)
+import GHC.TypeLits
+import Data.ProtocolBuffers
+import Data.Hex (unhex)
+import Data.Monoid (Last)
+import Data.Serialize (runGet)
+import Data.Text (Text)
+import Data.TypeLevel (D1, D2, D3, D4)
+import qualified GHC.Generics as G
+
 
 --------------------------------------------------------------------------------
 
 -- | Immediate, 2-dimensional heightmap array
 type HeightMap a  = Array U DIM2 a
 
+data HeightMapData = HeightMapData {
+    width     :: Required D1 (Value Int),
+    height    :: Required D2 (Value Int),
+    heightmap :: Required D3 (Value (HeightMap Float))
+} deriving (G.Generic)
+
 instance Encode (Array U DIM2 Float)
+
+-- instance Encode HeightMapData
 
 -- | Delayed, 2-dimensional heightmap array
 type HeightMap' a = Array D DIM2 a
