@@ -1,4 +1,4 @@
-package heightmap;
+package heightmap.protobuf;
 
 message HeightMap {
     required int32 width = 1;
