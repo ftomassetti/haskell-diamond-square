@@ -63,11 +63,12 @@ executable haskell-diamond-square
   build-depends:       base >=4.6 && <4.7, random >=1.1 && <1.2,
                        repa >=3.2 && <3.3, repa-io >=3.2 && <3.3,
                        mtl >=2.2 && <2.3, vector >=0.10 && <0.11,
-                       protobuf,
+                       hprotoc,
                        text,
                        cereal,
                        hex,
-                       type-level
+                       type-level,
+                       protocol-buffers
   
   -- Directories containing source files.
   -- hs-source-dirs:      

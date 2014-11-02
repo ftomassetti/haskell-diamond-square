@@ -1,0 +1,7 @@
+package heightmap;
+
+message HeightMap {
+    required int32 width = 1;
+    required int32 heigh = 2;
+    repeated float cell  = 3;
+}

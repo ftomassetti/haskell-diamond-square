@@ -21,10 +21,8 @@ import qualified Data.Vector.Unboxed.Mutable as UM
 import Data.Array.Repa hiding (map, (++))
 import qualified Data.Array.Repa as R
 import System.Random
-import Data.ProtocolBuffers
 import GHC.Generics (Generic)
 import GHC.TypeLits
-import Data.ProtocolBuffers
 import Data.Hex (unhex)
 import Data.Monoid (Last)
 import Data.Serialize (runGet)
@@ -37,16 +35,6 @@ import qualified GHC.Generics as G
 
 -- | Immediate, 2-dimensional heightmap array
 type HeightMap a  = Array U DIM2 a
-
-data HeightMapData = HeightMapData {
-    width     :: Required D1 (Value Int),
-    height    :: Required D2 (Value Int),
-    heightmap :: Required D3 (Value (HeightMap Float))
-} deriving (G.Generic)
-
-instance Encode (Array U DIM2 Float)
-
--- instance Encode HeightMapData
 
 -- | Delayed, 2-dimensional heightmap array
 type HeightMap' a = Array D DIM2 a
