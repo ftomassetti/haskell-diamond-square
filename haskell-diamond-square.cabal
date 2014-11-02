@@ -39,7 +39,7 @@ maintainer:          f.tomassetti@gmail.com
 
 category:            Development
 
-build-type:          Simple
+build-type:          Custom
 
 -- Extra files to be distributed with the package, such as examples or a 
 -- README.
@@ -70,7 +70,12 @@ executable haskell-diamond-square
                        type-level,
                        protocol-buffers,
                        containers,
-                       bytestring
+                       bytestring,
+                       filepath,
+                       process,
+                       Cabal
+
+  other-modules:       Heightmap
   
   -- Directories containing source files.
   hs-source-dirs:      src, generated
