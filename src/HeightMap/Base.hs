@@ -21,15 +21,6 @@ import qualified Data.Vector.Unboxed.Mutable as UM
 import Data.Array.Repa hiding (map, (++))
 import qualified Data.Array.Repa as R
 import System.Random
-import GHC.Generics (Generic)
-import GHC.TypeLits
-import Data.Hex (unhex)
-import Data.Monoid (Last)
-import Data.Serialize (runGet)
-import Data.Text (Text)
-import Data.TypeLevel (D1, D2, D3, D4)
-import qualified GHC.Generics as G
-
 
 --------------------------------------------------------------------------------
 
