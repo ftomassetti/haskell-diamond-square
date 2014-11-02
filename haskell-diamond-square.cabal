@@ -48,6 +48,27 @@ build-type:          Custom
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
 
+library
+    build-depends:     base >=4.6 && <4.7, random >=1.1 && <1.2,
+                       repa >=3.2 && <3.3, repa-io >=3.2 && <3.3,
+                       mtl >=2.2 && <2.3, vector >=0.10 && <0.11,
+                       hprotoc,
+                       text,
+                       cereal,
+                       hex,
+                       type-level,
+                       protocol-buffers,
+                       protocol-buffers-descriptor,
+                       containers,
+                       bytestring,
+                       filepath,
+                       process,
+                       Cabal
+    exposed-modules:     HeightMap.Mesh, HeightMap.Base
+    other-modules:       PBHeightmap
+    hs-source-dirs:      src
+    default-language:    Haskell2010
+
 
 executable haskell-diamond-square
   -- .hs or .lhs file containing the Main module.
@@ -69,16 +90,17 @@ executable haskell-diamond-square
                        hex,
                        type-level,
                        protocol-buffers,
+                       protocol-buffers-descriptor,
                        containers,
                        bytestring,
                        filepath,
                        process,
                        Cabal
 
-  other-modules:       Heightmap
+  other-modules:       PBHeightmap
   
   -- Directories containing source files.
-  hs-source-dirs:      src, generated
+  hs-source-dirs:      src, src/HeightMap
   
   -- Base language which the package is written in.
   default-language:    Haskell2010

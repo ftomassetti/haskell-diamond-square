@@ -19,7 +19,7 @@ import System.Environment
 import System.IO
 import Data.Maybe ( fromMaybe, isJust, fromJust, isNothing )
 import Control.Monad
-import qualified Protobuf.HeightMap as PH
+import qualified PBHeightmap.HeightMap as PH
 import Text.ProtocolBuffers.WireMessage (messageGet, messagePut)
 import qualified Data.ByteString.Lazy as ByteString (
        readFile, writeFile, length)
