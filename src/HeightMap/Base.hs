@@ -8,7 +8,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 module HeightMap.Base (HeightMap, HeightMap'
-  ,Point, getX, getY, getHeight
+  ,Point(Point), getX, getY, getHeight
   , reify
   , heightMap, heightMap', unitHeightMap, unitHeightMap')
 where
