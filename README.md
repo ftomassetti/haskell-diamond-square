@@ -37,6 +37,3 @@ The program accepts the following options. Note that -b or -m should be specifie
 |-bmap.bmp      | Specify where to save the bitmap | |
 |-mheightmap.hm | Specify where to save the map in binary format  | This is serialized using [Google Protocol Buffers](https://developers.google.com/protocol-buffers/) |
 
-Author
-======
-The implementation of the algorithm was done by [mikeswoods](https://github.com/mikeswoods/haskell-diamond-square), I just wrapped it in a command line utility.
