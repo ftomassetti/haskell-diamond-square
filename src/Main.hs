@@ -12,7 +12,7 @@ import qualified Data.Sequence as S
 import System.Random
 import qualified Data.Array.Repa as R
 import Data.Array.Repa.IO.BMP
-import HeightMap.Base (reify,heightMap,heightMap',unitHeightMap,unitHeightMap',getHeight,HeightMap,Point)
+import HeightMap.Base (reify,heightMap,heightMap',unitHeightMap,unitHeightMap',getHeight,HeightMap,Point,float2bytes)
 import HeightMap.Mesh ()
 import System.Console.GetOpt
 import System.Environment
@@ -74,9 +74,6 @@ compilerOpts argv =
      where header = "Usage: <To be written>"
 
 -- Misc
-
-float2bytes :: Float -> (Word8,Word8,Word8)
-float2bytes v = (b,b,b) where b = (floor $ 255.0 * v) :: Word8
 
 getSeed :: Options -> IO Int
 getSeed opts = if isJust $ optSeed opts

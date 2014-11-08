@@ -10,7 +10,8 @@
 module HeightMap.Base (HeightMap, HeightMap'
   ,Point(Point), getX, getY, getHeight
   , reify
-  , heightMap, heightMap', unitHeightMap, unitHeightMap')
+  , heightMap, heightMap', unitHeightMap, unitHeightMap'
+  , float2bytes)
 where
 import Control.Monad.Identity
 import Control.Monad.ST
@@ -21,6 +22,12 @@ import qualified Data.Vector.Unboxed.Mutable as UM
 import Data.Array.Repa hiding (map, (++))
 import qualified Data.Array.Repa as R
 import System.Random
+import Data.Word (Word8)
+
+-- Misc
+
+float2bytes :: Float -> (Word8,Word8,Word8)
+float2bytes v = (b,b,b) where b = (floor $ 255.0 * v) :: Word8
 
 --------------------------------------------------------------------------------
 
